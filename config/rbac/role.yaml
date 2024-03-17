@@ -1,0 +1,32 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: manager-role
+rules:
+- apiGroups:
+  - seatunnel.nineinfra.tech
+  resources:
+  - seatunneljobs
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - seatunnel.nineinfra.tech
+  resources:
+  - seatunneljobs/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - seatunnel.nineinfra.tech
+  resources:
+  - seatunneljobs/status
+  verbs:
+  - get
+  - patch
+  - update

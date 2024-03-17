@@ -1,0 +1,4 @@
+## Append samples of your project ##
+resources:
+- seatunnel_v1_seatunneljob.yaml
+#+kubebuilder:scaffold:manifestskustomizesamples

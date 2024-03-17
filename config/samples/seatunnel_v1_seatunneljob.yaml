@@ -1,0 +1,12 @@
+apiVersion: seatunnel.nineinfra.tech/v1
+kind: SeatunnelJob
+metadata:
+  labels:
+    app.kubernetes.io/name: seatunneljob
+    app.kubernetes.io/instance: seatunneljob-sample
+    app.kubernetes.io/part-of: seatunnel-operator
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/created-by: seatunnel-operator
+  name: seatunneljob-sample
+spec:
+  # TODO(user): Add fields here

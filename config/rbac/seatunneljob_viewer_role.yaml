@@ -1,0 +1,27 @@
+# permissions for end users to view seatunneljobs.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: clusterrole
+    app.kubernetes.io/instance: seatunneljob-viewer-role
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/created-by: seatunnel-operator
+    app.kubernetes.io/part-of: seatunnel-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: seatunneljob-viewer-role
+rules:
+- apiGroups:
+  - seatunnel.nineinfra.tech
+  resources:
+  - seatunneljobs
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - seatunnel.nineinfra.tech
+  resources:
+  - seatunneljobs/status
+  verbs:
+  - get
