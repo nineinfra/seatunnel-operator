@@ -9,4 +9,54 @@ metadata:
     app.kubernetes.io/created-by: seatunnel-operator
   name: seatunneljob-sample
 spec:
-  # TODO(user): Add fields here
+  version: "v2.3.4"
+  image:
+    repository: "nineinfra/seatunnel"
+    tag: "v2.3.4"
+    pullPolicy: "IfNotPresent"
+  conf:
+    env:
+      "spark.driver.defaultJavaOptions": "\"--add-exports java.base/sun.nio.ch=ALL-UNNAMED\""
+    source:
+      type: Jdbc
+      conf:
+        "url": "\"jdbc:postgresql://nine-test-nine-pg-rw:5432/nineinfra\""
+        "driver": "\"org.postgresql.Driver\""
+        "user": "\"nineinfra\""
+        "password": "\"nineinfra\""
+        "query": "\"select * from employees\""
+        "connection_check_timeout_sec": "30"
+    sink:
+      type: HdfsFile
+      conf:
+          "fs.defaultFS": "\"hdfs://nineinfra\""
+          "path": "\"/nineinfra/datahouse/seatunnel\""
+          "tmp_path": "\"/nineinfra/datahouse/tmp\""
+          "hdfs_site_path": "\"/opt/spark/conf/hdfs-site.xml\""
+          "custom_filename": "true"
+          "file_name_expression": "\"${now}\""
+          "file_format_type": "\"text\""
+          "field_delimiter": "\",\""
+          "row_delimiter": "\"\\n\""
+          "have_partition": "false"
+          "is_partition_field_write_in_file": "false"
+          "is_enable_transaction": "false"
+          "batch_size": "10000000"
+          "compress_codec": "\"none\""
+          "remote_user": "\"kyuubi\""
+      partitionBy:
+        - "\"dept_id\""
+      sinkColumns:
+        - "\"emp_id\""
+        - "\"first_name\""
+        - "\"last_name\""
+        - "\"hire_date\""
+        - "\"job_id\""
+        - "\"salary\""
+        - "\"commission_pct\""
+        - "\"manager_id\""
+        - "\"dept_id\""
+
+
+
+

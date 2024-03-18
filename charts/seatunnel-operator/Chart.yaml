@@ -1,0 +1,9 @@
+apiVersion: v2
+appVersion: v2.3.4
+description: The Seatunnel Operator for Apache Seatunnel
+home: https://github.com/nineinfra/seatunnel-operator
+maintainers:
+- name: nineinfra
+  url: https://github.com/nineinfra
+name: seatunnel-operator
+version: v0.9.0

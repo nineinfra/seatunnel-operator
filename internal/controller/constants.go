@@ -20,17 +20,47 @@ const (
 	// DefaultDiskNum is the default disk num
 	DefaultDiskNum = 1
 
+	// DefaultClusterDomainName is the cluster domain name
 	DefaultClusterDomainName = "clusterDomain"
-	DefaultClusterDomain     = "cluster.local"
 
+	// DefaultClusterDomain is the cluster domain value
+	DefaultClusterDomain = "cluster.local"
+
+	// DefaultLogVolumeName is the log volume name
 	DefaultLogVolumeName = "log"
 
+	// DefaultConfigNameSuffix is the config volume name suffix
 	DefaultConfigNameSuffix = "-config"
 
-	DefaultHome              = "/opt/seatunnel"
-	DefaultConfigFileName    = "seatunnel.conf"
+	// DefaultClusterRefsConfigNameSuffix is the cluster refs config volume name suffix
+	DefaultClusterRefsConfigNameSuffix = "-kyuubi-clusterrefs"
+
+	// DefaultHome is the home dir
+	DefaultHome = "/opt/seatunnel"
+
+	// DefaultConfigFileName is the config file name
+	DefaultConfigFileName = "seatunnel.conf"
+
+	// DefaultLogConfigFileName is the log config file name
 	DefaultLogConfigFileName = "log4j.properties"
-	DefaultDiskPathPrefix    = "disk"
+
+	// DefaultDiskPathPrefix is disk path prefix
+	DefaultDiskPathPrefix = "disk"
+
+	// DefaultSparkConfFile is the default conf file name of the spark
+	DefaultSparkConfFile = "spark-defaults.conf"
+
+	// DefaultSparkConfDir is the default conf dir of the spark
+	DefaultSparkConfDir = "/opt/spark/conf"
+
+	// DefaultHiveSiteFile is the default hive site file name of the metastore
+	DefaultHiveSiteFile = "hive-site.xml"
+
+	// DefaultHdfsSiteFile is the default hdfs site file name of the hdfs
+	DefaultHdfsSiteFile = "hdfs-site.xml"
+
+	// DefaultCoreSiteFile is the default core site file name of the hdfs
+	DefaultCoreSiteFile = "core-site.xml"
 
 	// DefaultTerminationGracePeriod is the default time given before the
 	// container is stopped. This gives clients time to disconnect from a

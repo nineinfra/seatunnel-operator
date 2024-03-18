@@ -52,6 +52,7 @@ type ImageConfig struct {
 }
 
 type SchemeConfig struct {
+	// Fields for the schema.
 	Fields map[string]string `json:"fields"`
 }
 
@@ -62,7 +63,7 @@ type SourceConfig struct {
 	Conf map[string]string `json:"conf"`
 	// TableList. The table list of the source.
 	// +optional
-	TableList []map[string]string `json:"table_list"`
+	TableList []map[string]string `json:"tableList"`
 	// Scheme.  The scheme of the source.
 	// +optional
 	Scheme SchemeConfig `json:"scheme"`
@@ -70,7 +71,8 @@ type SourceConfig struct {
 	// +optional
 	Properties map[string]string `json:"properties"`
 	// ExtraConfig. The extra config k/v of the sink.
-	ExtraConfig map[string]string `json:"extra_config"`
+	// +optional
+	ExtraConfig map[string]string `json:"extraConfig"`
 }
 
 type TransformConfig struct {
@@ -89,11 +91,14 @@ type SinkConfig struct {
 	// Conf. The conf of the sink.
 	Conf map[string]string `json:"conf"`
 	// PartitionBy. The partition field list of the sink.
-	PartitionBy []string `json:"partition_by"`
+	// +optional
+	PartitionBy []string `json:"partitionBy"`
 	// PartitionBy. The sink column list of the sink.
-	SinkColumns []string `json:"sink_columns"`
+	// +optional
+	SinkColumns []string `json:"sinkColumns"`
 	// ExtraConfig. The extra config k/v of the sink.
-	ExtraConfig map[string]string `json:"extra_config"`
+	// +optional
+	ExtraConfig map[string]string `json:"extraConfig"`
 }
 
 type SeatunnelConfig struct {

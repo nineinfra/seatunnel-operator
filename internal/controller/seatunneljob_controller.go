@@ -22,6 +22,7 @@ import (
 	"github.com/go-logr/logr"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
@@ -128,6 +129,57 @@ func (r *SeatunnelJobReconciler) reconcileJobStatus(ctx context.Context, job *se
 	return r.Client.Status().Update(context.TODO(), job)
 }
 
+func (r *SeatunnelJobReconciler) reconcileServiceAccount(ctx context.Context, job *seatunnelv1.SeatunnelJob, logger logr.Logger) (err error) {
+	desiredSA, err := r.constructServiceAccount(job)
+	if err != nil {
+		return err
+	}
+	existsSA := &corev1.ServiceAccount{}
+	err = r.Client.Get(context.TODO(), types.NamespacedName{Name: desiredSA.Name, Namespace: desiredSA.Namespace}, existsSA)
+	if err != nil && errors.IsNotFound(err) {
+		logger.Info("Creating a new ServiceAccount")
+		err = r.Client.Create(context.TODO(), desiredSA)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (r *SeatunnelJobReconciler) reconcileRole(ctx context.Context, job *seatunnelv1.SeatunnelJob, logger logr.Logger) (err error) {
+	desiredRole, err := r.constructRole(job)
+	if err != nil {
+		return err
+	}
+	existsRole := &rbacv1.Role{}
+	err = r.Client.Get(context.TODO(), types.NamespacedName{Name: desiredRole.Name, Namespace: desiredRole.Namespace}, existsRole)
+	if err != nil && errors.IsNotFound(err) {
+		logger.Info("Creating a new Role")
+		err = r.Client.Create(context.TODO(), desiredRole)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (r *SeatunnelJobReconciler) reconcileRoleBinding(ctx context.Context, job *seatunnelv1.SeatunnelJob, logger logr.Logger) (err error) {
+	desiredRoleBinding, err := r.constructRoleBinding(job)
+	if err != nil {
+		return err
+	}
+	existsRoleBinding := &rbacv1.RoleBinding{}
+	err = r.Client.Get(context.TODO(), types.NamespacedName{Name: desiredRoleBinding.Name, Namespace: desiredRoleBinding.Namespace}, existsRoleBinding)
+	if err != nil && errors.IsNotFound(err) {
+		logger.Info("Creating a new RoleBinding")
+		err = r.Client.Create(context.TODO(), desiredRoleBinding)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (r *SeatunnelJobReconciler) reconcileConfigMap(ctx context.Context, job *seatunnelv1.SeatunnelJob, logger logr.Logger) (err error) {
 	desiredCm, err := r.constructConfigMap(job)
 	if err != nil {
@@ -141,7 +193,6 @@ func (r *SeatunnelJobReconciler) reconcileConfigMap(ctx context.Context, job *se
 		if err != nil {
 			return err
 		}
-		return nil
 	} else if err != nil {
 		return err
 	} else {
@@ -152,7 +203,6 @@ func (r *SeatunnelJobReconciler) reconcileConfigMap(ctx context.Context, job *se
 			return err
 		}
 	}
-
 	return nil
 }
 
@@ -180,6 +230,9 @@ func (r *SeatunnelJobReconciler) reconcileWorkload(ctx context.Context, job *sea
 func (r *SeatunnelJobReconciler) reconcileJobs(ctx context.Context, job *seatunnelv1.SeatunnelJob, logger logr.Logger) error {
 	for _, fun := range []reconcileFun{
 		r.reconcileConfigMap,
+		r.reconcileServiceAccount,
+		r.reconcileRole,
+		r.reconcileRoleBinding,
 		r.reconcileWorkload,
 		r.reconcileJobStatus,
 	} {

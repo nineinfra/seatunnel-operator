@@ -7,6 +7,7 @@ import (
 	seatunnelv1 "github.com/nineinfra/seatunnel-operator/api/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -35,7 +36,7 @@ func checkSinkTypeSupported(sinkType string) bool {
 func writeEnvConfig(conf map[string]string) string {
 	var sb strings.Builder
 	sb.WriteString("env{\n")
-	sb.WriteString(map2String(conf))
+	sb.WriteString(map2String(conf, 2))
 	sb.WriteString("}\n")
 	return sb.String()
 }
@@ -46,35 +47,48 @@ func writeSourceConfig(source *seatunnelv1.SourceConfig) string {
 	if !checkSourceTypeSupported(source.Type) {
 		return ""
 	}
-	sb.WriteString(fmt.Sprintf("%s {\n", source.Type))
-	if source.Conf != nil {
-		sb.WriteString(map2String(source.Conf))
-	}
-	if source.TableList != nil {
-		sb.WriteString(fmt.Sprintf("%s = [\n", "table_list"))
-		for _, v := range source.TableList {
-			sb.WriteString(map2String(v))
+	if source.Type != "" {
+		writeSpaces(&sb, 2)
+		sb.WriteString(fmt.Sprintf("%s{\n", source.Type))
+		if source.Conf != nil {
+			sb.WriteString(map2String(source.Conf, 4))
 		}
-		sb.WriteString("]\n")
-	}
-	if source.Scheme.Fields != nil {
-		sb.WriteString("schema = {\n")
-		sb.WriteString("fields {\n")
-		sb.WriteString(map2String(source.Scheme.Fields))
+		if source.TableList != nil {
+			writeSpaces(&sb, 4)
+			sb.WriteString(fmt.Sprintf("%s=[\n", "table_list"))
+			for _, v := range source.TableList {
+				sb.WriteString(map2String(v, 6))
+			}
+			sb.WriteString("]\n")
+		}
+		if source.Scheme.Fields != nil {
+			writeSpaces(&sb, 4)
+			sb.WriteString("schema={\n")
+			writeSpaces(&sb, 6)
+			sb.WriteString("fields{\n")
+			sb.WriteString(map2String(source.Scheme.Fields, 8))
+			writeSpaces(&sb, 6)
+			sb.WriteString("}\n")
+			writeSpaces(&sb, 4)
+			sb.WriteString("}\n")
+		}
+		if source.Properties != nil {
+			writeSpaces(&sb, 4)
+			sb.WriteString("properties{\n")
+			sb.WriteString(map2String(source.Properties, 6))
+			writeSpaces(&sb, 4)
+			sb.WriteString("}\n")
+		}
+		if source.ExtraConfig != nil {
+			writeSpaces(&sb, 4)
+			sb.WriteString(fmt.Sprintf("%s.config={", strings.ToLower(source.Type)))
+			sb.WriteString(map2String(source.ExtraConfig, 6))
+			writeSpaces(&sb, 4)
+			sb.WriteString("}\n")
+		}
+		writeSpaces(&sb, 2)
 		sb.WriteString("}\n")
-		sb.WriteString("}\n")
 	}
-	if source.Properties != nil {
-		sb.WriteString("properties {\n")
-		sb.WriteString(map2String(source.Properties))
-		sb.WriteString("}\n")
-	}
-	if source.ExtraConfig != nil {
-		sb.WriteString(fmt.Sprintf("%s.config = {", strings.ToLower(source.Type)))
-		sb.WriteString(map2String(source.ExtraConfig))
-		sb.WriteString("}\n")
-	}
-	sb.WriteString("}\n")
 	sb.WriteString("}\n")
 	return sb.String()
 }
@@ -85,16 +99,24 @@ func writeTransformConfig(transform *seatunnelv1.TransformConfig) string {
 	if !checkTransformTypeSupported(transform.Type) {
 		return ""
 	}
-	sb.WriteString(fmt.Sprintf("%s {\n", transform.Type))
-	sb.WriteString(map2String(transform.Conf))
-	if transform.Scheme.Fields != nil {
-		sb.WriteString("schema = {\n")
-		sb.WriteString("fields {\n")
-		sb.WriteString(map2String(transform.Scheme.Fields))
-		sb.WriteString("}\n")
+	if transform.Type != "" {
+		writeSpaces(&sb, 2)
+		sb.WriteString(fmt.Sprintf("%s{\n", transform.Type))
+		sb.WriteString(map2String(transform.Conf, 4))
+		if transform.Scheme.Fields != nil {
+			writeSpaces(&sb, 4)
+			sb.WriteString("schema={\n")
+			writeSpaces(&sb, 6)
+			sb.WriteString("fields{\n")
+			sb.WriteString(map2String(transform.Scheme.Fields, 8))
+			writeSpaces(&sb, 6)
+			sb.WriteString("}\n")
+			writeSpaces(&sb, 4)
+			sb.WriteString("}\n")
+		}
+		writeSpaces(&sb, 2)
 		sb.WriteString("}\n")
 	}
-	sb.WriteString("}\n")
 	sb.WriteString("}\n")
 	return sb.String()
 }
@@ -105,26 +127,33 @@ func writeSinkConfig(sink *seatunnelv1.SinkConfig) string {
 	if !checkSinkTypeSupported(sink.Type) {
 		return ""
 	}
-	sb.WriteString(fmt.Sprintf("%s {\n", sink.Type))
-	if sink.Conf != nil {
-		sb.WriteString(map2String(sink.Conf))
-	}
-	if sink.PartitionBy != nil {
-		sb.WriteString("partition_by = [")
-		sb.WriteString(list2String(sink.PartitionBy))
-		sb.WriteString("]\n")
-	}
-	if sink.SinkColumns != nil {
-		sb.WriteString("sink_columns = [")
-		sb.WriteString(list2String(sink.SinkColumns))
-		sb.WriteString("]\n")
-	}
-	if sink.ExtraConfig != nil {
-		sb.WriteString(fmt.Sprintf("%s.config = {", strings.ToLower(sink.Type)))
-		sb.WriteString(map2String(sink.ExtraConfig))
+	if sink.Type != "" {
+		writeSpaces(&sb, 2)
+		sb.WriteString(fmt.Sprintf("%s{\n", sink.Type))
+		if sink.Conf != nil {
+			sb.WriteString(map2String(sink.Conf, 4))
+		}
+		if sink.PartitionBy != nil {
+			writeSpaces(&sb, 4)
+			sb.WriteString("partition_by=[")
+			sb.WriteString(list2String(sink.PartitionBy))
+			sb.WriteString("]\n")
+		}
+		if sink.SinkColumns != nil {
+			writeSpaces(&sb, 4)
+			sb.WriteString("sink_columns=[")
+			sb.WriteString(list2String(sink.SinkColumns))
+			sb.WriteString("]\n")
+		}
+		if sink.ExtraConfig != nil {
+			writeSpaces(&sb, 4)
+			sb.WriteString(fmt.Sprintf("%s.config={", strings.ToLower(sink.Type)))
+			sb.WriteString(map2String(sink.ExtraConfig, 6))
+			sb.WriteString("}\n")
+		}
+		writeSpaces(&sb, 2)
 		sb.WriteString("}\n")
 	}
-	sb.WriteString("}\n")
 	sb.WriteString("}\n")
 	return sb.String()
 }
@@ -143,7 +172,7 @@ func constructJobConfig(job *seatunnelv1.SeatunnelJob) string {
 
 func constructLogConfig() string {
 	tmpConf := DefaultLogConfKeyValue
-	return map2String(tmpConf)
+	return map2String(tmpConf, 0)
 }
 
 func getImageConfig(cluster *seatunnelv1.SeatunnelJob) seatunnelv1.ImageConfig {
@@ -197,6 +226,10 @@ func (r *SeatunnelJobReconciler) constructVolumeMounts(cluster *seatunnelv1.Seat
 			SubPath:   DefaultLogConfigFileName,
 		},
 	}
+	clusterRefsVolumeMounts := ConstructClusterRefsVolumeMounts(cluster)
+	for _, v := range clusterRefsVolumeMounts {
+		volumeMounts = append(volumeMounts, v)
+	}
 	return volumeMounts
 }
 
@@ -224,6 +257,11 @@ func (r *SeatunnelJobReconciler) constructVolumes(cluster *seatunnelv1.Seatunnel
 		},
 	}
 
+	clusterRefsVolumes := ConstructClusterRefsVolumes(cluster)
+	for _, v := range clusterRefsVolumes {
+		volumes = append(volumes, v)
+	}
+
 	return volumes
 }
 
@@ -242,8 +280,6 @@ func (r *SeatunnelJobReconciler) constructPodSpec(job *seatunnelv1.SeatunnelJob)
 	}
 	cmdString := []string{
 		"/opt/seatunnel/bin/start-seatunnel-spark-3-connector-v2.sh",
-		"--master",
-		fmt.Sprintf("k8s://https://%s:443", apiSvc.Spec.ClusterIP),
 		"--config",
 		DefaultConfFile,
 	}
@@ -259,9 +295,10 @@ func (r *SeatunnelJobReconciler) constructPodSpec(job *seatunnelv1.SeatunnelJob)
 			},
 		},
 		ImagePullSecrets:              tmpPullSecrets,
-		RestartPolicy:                 corev1.RestartPolicyAlways,
+		RestartPolicy:                 corev1.RestartPolicyOnFailure,
 		TerminationGracePeriodSeconds: &tgp,
 		Volumes:                       r.constructVolumes(job),
+		ServiceAccountName:            ClusterResourceName(job),
 		Affinity: &corev1.Affinity{
 			PodAntiAffinity: &corev1.PodAntiAffinity{
 				RequiredDuringSchedulingIgnoredDuringExecution: []corev1.PodAffinityTerm{
@@ -277,6 +314,83 @@ func (r *SeatunnelJobReconciler) constructPodSpec(job *seatunnelv1.SeatunnelJob)
 	}, nil
 }
 
+func (r *SeatunnelJobReconciler) constructServiceAccount(job *seatunnelv1.SeatunnelJob) (*corev1.ServiceAccount, error) {
+	saDesired := &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      ClusterResourceName(job),
+			Namespace: job.Namespace,
+			Labels:    ClusterResourceLabels(job),
+		},
+	}
+
+	if err := ctrl.SetControllerReference(job, saDesired, r.Scheme); err != nil {
+		return saDesired, err
+	}
+	return saDesired, nil
+}
+
+func (r *SeatunnelJobReconciler) constructRole(job *seatunnelv1.SeatunnelJob) (*rbacv1.Role, error) {
+	roleDesired := &rbacv1.Role{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      ClusterResourceName(job),
+			Namespace: job.Namespace,
+			Labels:    ClusterResourceLabels(job),
+		},
+		Rules: []rbacv1.PolicyRule{
+			{
+				APIGroups: []string{
+					"",
+				},
+				Resources: []string{
+					"pods",
+					"configmaps",
+					"services",
+					"persistentvolumeclaims",
+				},
+				Verbs: []string{
+					"get",
+					"create",
+					"list",
+					"delete",
+					"watch",
+					"deletecollection",
+				},
+			},
+		},
+	}
+
+	if err := ctrl.SetControllerReference(job, roleDesired, r.Scheme); err != nil {
+		return roleDesired, err
+	}
+	return roleDesired, nil
+}
+
+func (r *SeatunnelJobReconciler) constructRoleBinding(job *seatunnelv1.SeatunnelJob) (*rbacv1.RoleBinding, error) {
+	roleBindingDesired := &rbacv1.RoleBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      ClusterResourceName(job),
+			Namespace: job.Namespace,
+			Labels:    ClusterResourceLabels(job),
+		},
+		Subjects: []rbacv1.Subject{
+			{
+				Kind: "ServiceAccount",
+				Name: ClusterResourceName(job),
+			},
+		},
+		RoleRef: rbacv1.RoleRef{
+			APIGroup: "rbac.authorization.k8s.io",
+			Kind:     "Role",
+			Name:     ClusterResourceName(job),
+		},
+	}
+
+	if err := ctrl.SetControllerReference(job, roleBindingDesired, r.Scheme); err != nil {
+		return roleBindingDesired, err
+	}
+	return roleBindingDesired, nil
+}
+
 func (r *SeatunnelJobReconciler) constructWorkload(job *seatunnelv1.SeatunnelJob) (*batchv1.Job, error) {
 	podSpec, err := r.constructPodSpec(job)
 	if err != nil {
@@ -289,9 +403,6 @@ func (r *SeatunnelJobReconciler) constructWorkload(job *seatunnelv1.SeatunnelJob
 			Labels:    ClusterResourceLabels(job),
 		},
 		Spec: batchv1.JobSpec{
-			Selector: &metav1.LabelSelector{
-				MatchLabels: ClusterResourceLabels(job),
-			},
 			BackoffLimit: int32Ptr(getReplicas(job)),
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
