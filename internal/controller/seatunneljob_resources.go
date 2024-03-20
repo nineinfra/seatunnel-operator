@@ -57,8 +57,13 @@ func writeSourceConfig(source *seatunnelv1.SourceConfig) string {
 			writeSpaces(&sb, 4)
 			sb.WriteString(fmt.Sprintf("%s=[\n", "table_list"))
 			for _, v := range source.TableList {
-				sb.WriteString(map2String(v, 6))
+				writeSpaces(&sb, 6)
+				sb.WriteString("{\n")
+				sb.WriteString(map2String(v, 8))
+				writeSpaces(&sb, 6)
+				sb.WriteString("},\n")
 			}
+			writeSpaces(&sb, 4)
 			sb.WriteString("]\n")
 		}
 		if source.Scheme.Fields != nil {
@@ -213,6 +218,53 @@ func (r *SeatunnelJobReconciler) constructConfigMap(job *seatunnelv1.SeatunnelJo
 	return cm, nil
 }
 
+func (r *SeatunnelJobReconciler) getClusterRefsConfigMap(cluster *seatunnelv1.SeatunnelJob) *corev1.ConfigMap {
+	clusterRefsCM := &corev1.ConfigMap{}
+	_ = r.Client.Get(context.TODO(), types.NamespacedName{Name: NineResourceName(cluster, DefaultClusterRefsConfigNameSuffix), Namespace: cluster.Namespace}, clusterRefsCM)
+	return clusterRefsCM
+}
+
+func (r *SeatunnelJobReconciler) constructClusterRefsVolumeMounts(cluster *seatunnelv1.SeatunnelJob) []corev1.VolumeMount {
+	clusterRefsCM := r.getClusterRefsConfigMap(cluster)
+	volumeMounts := make([]corev1.VolumeMount, 0)
+	for _, confFile := range ClusterRefsConfFileList {
+		if _, ok := clusterRefsCM.Data[confFile]; ok {
+			volumeMounts = append(volumeMounts, corev1.VolumeMount{
+				Name:      NineResourceName(cluster, DefaultClusterRefsConfigNameSuffix),
+				MountPath: fmt.Sprintf("%s/%s", DefaultSparkConfDir, confFile),
+				SubPath:   confFile,
+			})
+		}
+	}
+	return volumeMounts
+}
+
+func (r *SeatunnelJobReconciler) constructClusterRefsVolumes(cluster *seatunnelv1.SeatunnelJob) []corev1.Volume {
+	clusterRefsCM := r.getClusterRefsConfigMap(cluster)
+	keyToPaths := make([]corev1.KeyToPath, 0)
+	for _, confFile := range ClusterRefsConfFileList {
+		if _, ok := clusterRefsCM.Data[confFile]; ok {
+			keyToPaths = append(keyToPaths, corev1.KeyToPath{
+				Key:  confFile,
+				Path: confFile,
+			})
+		}
+	}
+	return []corev1.Volume{
+		{
+			Name: NineResourceName(cluster, DefaultClusterRefsConfigNameSuffix),
+			VolumeSource: corev1.VolumeSource{
+				ConfigMap: &corev1.ConfigMapVolumeSource{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: NineResourceName(cluster, DefaultClusterRefsConfigNameSuffix),
+					},
+					Items: keyToPaths,
+				},
+			},
+		},
+	}
+}
+
 func (r *SeatunnelJobReconciler) constructVolumeMounts(cluster *seatunnelv1.SeatunnelJob) []corev1.VolumeMount {
 	volumeMounts := []corev1.VolumeMount{
 		{
@@ -226,7 +278,7 @@ func (r *SeatunnelJobReconciler) constructVolumeMounts(cluster *seatunnelv1.Seat
 			SubPath:   DefaultLogConfigFileName,
 		},
 	}
-	clusterRefsVolumeMounts := ConstructClusterRefsVolumeMounts(cluster)
+	clusterRefsVolumeMounts := r.constructClusterRefsVolumeMounts(cluster)
 	for _, v := range clusterRefsVolumeMounts {
 		volumeMounts = append(volumeMounts, v)
 	}
@@ -257,7 +309,7 @@ func (r *SeatunnelJobReconciler) constructVolumes(cluster *seatunnelv1.Seatunnel
 		},
 	}
 
-	clusterRefsVolumes := ConstructClusterRefsVolumes(cluster)
+	clusterRefsVolumes := r.constructClusterRefsVolumes(cluster)
 	for _, v := range clusterRefsVolumes {
 		volumes = append(volumes, v)
 	}

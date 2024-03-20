@@ -33,7 +33,7 @@ const (
 	DefaultConfigNameSuffix = "-config"
 
 	// DefaultClusterRefsConfigNameSuffix is the cluster refs config volume name suffix
-	DefaultClusterRefsConfigNameSuffix = "-kyuubi-clusterrefs"
+	DefaultClusterRefsConfigNameSuffix = "-clusterrefs"
 
 	// DefaultHome is the home dir
 	DefaultHome = "/opt/seatunnel"
@@ -123,6 +123,7 @@ var (
 	DefaultDataPath = fmt.Sprintf("%s/%s", DefaultHome, "data")
 	DefaultLogPath  = fmt.Sprintf("%s/%s", DefaultHome, "logs")
 	DefaultConfFile = fmt.Sprintf("%s/%s", DefaultConfPath, DefaultConfigFileName)
+	ClusterRefsConfFileList = []string{DefaultSparkConfFile, DefaultHiveSiteFile, DefaultHdfsSiteFile, DefaultCoreSiteFile}
 )
 
 var (

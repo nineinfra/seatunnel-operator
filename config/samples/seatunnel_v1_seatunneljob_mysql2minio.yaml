@@ -1,0 +1,84 @@
+apiVersion: seatunnel.nineinfra.tech/v1
+kind: SeatunnelJob
+metadata:
+  labels:
+    app.kubernetes.io/name: seatunneljob
+    app.kubernetes.io/instance: seatunneljob-sample
+    app.kubernetes.io/part-of: seatunnel-operator
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/created-by: seatunnel-operator
+  name: nine-test-nine
+spec:
+  version: "v2.3.4"
+  image:
+    repository: "nineinfra/seatunnel"
+    tag: "v2.3.4"
+    pullPolicy: "IfNotPresent"
+  conf:
+    env:
+      "spark.driver.defaultJavaOptions": "\"--add-exports java.base/sun.nio.ch=ALL-UNNAMED\""
+    source:
+      type: Jdbc
+      conf:
+        "url": "\"jdbc:mysql://nineinfra-mysql:3306/nineinfra?serverTimezone=GMT%2b8&useUnicode=true&characterEncoding=UTF-8&rewriteBatchedStatements=true\""
+        "driver": "\"com.mysql.cj.jdbc.Driver\""
+        "user": "\"nineinfra\""
+        "password": "\"nineinfra\""
+        "connection_check_timeout_sec": "30"
+      tableList:
+        - "table_path": "\"nineinfra.activity_info\""
+          "query": "\"select * from nineinfra.activity_info\""
+        - "table_path": "\"nineinfra.activity_rule\""
+          "query": "\"select * from nineinfra.activity_rule\""
+        - "table_path": "\"nineinfra.base_category1\""
+          "query": "\"select * from nineinfra.base_category1\""
+        - "table_path": "\"nineinfra.base_category2\""
+          "query": "\"select * from nineinfra.base_category2\""
+        - "table_path": "\"nineinfra.base_category3\""
+          "query": "\"select * from nineinfra.base_category3\""
+        - "table_path": "\"nineinfra.base_dic\""
+          "query": "\"select * from nineinfra.base_dic\""
+        - "table_path": "\"nineinfra.base_province\""
+          "query": "\"select * from nineinfra.base_province\""
+        - "table_path": "\"nineinfra.base_region\""
+          "query": "\"select * from nineinfra.base_region\""
+        - "table_path": "\"nineinfra.base_trademark\""
+          "query": "\"select * from nineinfra.base_trademark\""
+        - "table_path": "\"nineinfra.cart_info\""
+          "query": "\"select * from nineinfra.cart_info\""
+        - "table_path": "\"nineinfra.coupon_info\""
+          "query": "\"select * from nineinfra.coupon_info\""
+        - "table_path": "\"nineinfra.sku_attr_value\""
+          "query": "\"select * from nineinfra.sku_attr_value\""
+        - "table_path": "\"nineinfra.sku_info\""
+          "query": "\"select * from nineinfra.sku_info\""
+        - "table_path": "\"nineinfra.sku_sale_attr_value\""
+          "query": "\"select * from nineinfra.sku_sale_attr_value\""
+        - "table_path": "\"nineinfra.spu_info\""
+          "query": "\"select * from nineinfra.spu_info\""
+    sink:
+      type: S3File
+      conf:
+          "bucket": "\"s3a://nineinfra/datahouse\""
+          "path": "\"/seatunnel/${table_name}\""
+          "tmp_path": "\"/tmp/seatunnel\""
+          "fs.s3a.endpoint": "\"http://10.104.240.226\""
+          "fs.s3a.aws.credentials.provider": "\"org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider\""
+          "access_key": "\"0L3XDNU2JP5EQ203HTO5\""
+          "secret_key": "\"WPncfKEg17yUjXLvVBPYZALzcoeGf1KRWWzRgdOe\""
+          "custom_filename": "true"
+          "file_name_expression": "\"${now}\""
+          "file_format_type": "\"parquet\""
+          "schema_save_mode": "CREATE_SCHEMA_WHEN_NOT_EXIST"
+          "data_save_mode": "APPEND_DATA"
+          "field_delimiter": "\",\""
+          "row_delimiter": "\"\\n\""
+          "have_partition": "false"
+          "is_partition_field_write_in_file": "false"
+          "is_enable_transaction": "false"
+          "batch_size": "10000000"
+          "compress_codec": "\"none\""
+
+
+
+

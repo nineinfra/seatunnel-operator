@@ -7,6 +7,10 @@ import (
 	"strings"
 )
 
+func NineResourceName(cluster *seatunnelv1.SeatunnelJob, suffixs ...string) string {
+	return cluster.Name + strings.Join(suffixs, "-")
+}
+
 func ClusterResourceName(cluster *seatunnelv1.SeatunnelJob, suffixs ...string) string {
 	return cluster.Name + DefaultNameSuffix + strings.Join(suffixs, "-")
 }
@@ -36,64 +40,6 @@ func GetClusterDomain(cluster *seatunnelv1.SeatunnelJob) string {
 		}
 	}
 	return DefaultClusterDomain
-}
-
-func ConstructClusterRefsVolumeMounts(cluster *seatunnelv1.SeatunnelJob) []corev1.VolumeMount {
-	return []corev1.VolumeMount{
-		{
-			Name:      ClusterResourceName(cluster, DefaultClusterRefsConfigNameSuffix),
-			MountPath: fmt.Sprintf("%s/%s", DefaultSparkConfDir, DefaultSparkConfFile),
-			SubPath:   DefaultSparkConfFile,
-		},
-		{
-			Name:      ClusterResourceName(cluster, DefaultClusterRefsConfigNameSuffix),
-			MountPath: fmt.Sprintf("%s/%s", DefaultSparkConfDir, DefaultHiveSiteFile),
-			SubPath:   DefaultHiveSiteFile,
-		},
-		{
-			Name:      ClusterResourceName(cluster, DefaultClusterRefsConfigNameSuffix),
-			MountPath: fmt.Sprintf("%s/%s", DefaultSparkConfDir, DefaultHdfsSiteFile),
-			SubPath:   DefaultHdfsSiteFile,
-		},
-		{
-			Name:      ClusterResourceName(cluster, DefaultClusterRefsConfigNameSuffix),
-			MountPath: fmt.Sprintf("%s/%s", DefaultSparkConfDir, DefaultCoreSiteFile),
-			SubPath:   DefaultCoreSiteFile,
-		},
-	}
-}
-
-func ConstructClusterRefsVolumes(cluster *seatunnelv1.SeatunnelJob) []corev1.Volume {
-	return []corev1.Volume{
-		{
-			Name: ClusterResourceName(cluster, DefaultClusterRefsConfigNameSuffix),
-			VolumeSource: corev1.VolumeSource{
-				ConfigMap: &corev1.ConfigMapVolumeSource{
-					LocalObjectReference: corev1.LocalObjectReference{
-						Name: fmt.Sprintf("%s%s", cluster.Name, DefaultClusterRefsConfigNameSuffix),
-					},
-					Items: []corev1.KeyToPath{
-						{
-							Key:  DefaultSparkConfFile,
-							Path: DefaultSparkConfFile,
-						},
-						{
-							Key:  DefaultHiveSiteFile,
-							Path: DefaultHiveSiteFile,
-						},
-						{
-							Key:  DefaultHdfsSiteFile,
-							Path: DefaultHdfsSiteFile,
-						},
-						{
-							Key:  DefaultCoreSiteFile,
-							Path: DefaultCoreSiteFile,
-						},
-					},
-				},
-			},
-		},
-	}
 }
 
 func DefaultDownwardAPI() []corev1.EnvVar {
