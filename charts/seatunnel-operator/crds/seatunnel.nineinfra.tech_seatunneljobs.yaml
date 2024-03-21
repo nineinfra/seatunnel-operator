@@ -252,8 +252,11 @@ spec:
             - version
             type: object
           status:
-            description: SeatunnelJobStatus defines the observed state of KafkaCluster
+            description: SeatunnelJobStatus defines the observed state of the seatunneljob
             properties:
+              completed:
+                description: Completed is status of the seatunneljob
+                type: boolean
               conditions:
                 description: Conditions list all the applied conditions
                 items:
@@ -282,42 +285,36 @@ spec:
                       type: string
                   type: object
                 type: array
-              currentVersion:
-                description: CurrentVersion is the current cluster version
-                type: string
-              externalClientEndpoint:
-                description: ExternalClientEndpoint is the internal client IP and
-                  port
-                type: string
-              internalClientEndpoint:
-                description: InternalClientEndpoint is the internal client IP and
-                  port
-                type: string
               members:
                 description: Members is the members in the cluster
                 properties:
-                  ready:
+                  failed:
                     items:
                       type: string
                     nullable: true
                     type: array
-                  unready:
+                  succeeded:
+                    items:
+                      type: string
+                    nullable: true
+                    type: array
+                  unsucceeded:
                     items:
                       type: string
                     nullable: true
                     type: array
                 type: object
-              readyReplicas:
-                description: ReadyReplicas is the number of ready replicas in the
-                  cluster
-                format: int32
-                type: integer
               replicas:
                 description: Replicas is the number of desired replicas in the cluster
                 format: int32
                 type: integer
-              targetVersion:
-                type: string
+              succeededReplicas:
+                description: SucceededReplicas is the number of succeeded replicas
+                  in the cluster
+                format: int32
+                type: integer
+            required:
+            - completed
             type: object
         type: object
     served: true

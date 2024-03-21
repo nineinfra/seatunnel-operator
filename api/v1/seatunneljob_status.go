@@ -8,22 +8,19 @@ import (
 type ClusterConditionType string
 
 const (
-	ClusterConditionPodsReady ClusterConditionType = "PodsReady"
-	ClusterConditionUpgrading                      = "Upgrading"
-	ClusterConditionError                          = "Error"
-
-	// UpdatingClusterReason Reasons for cluster upgrading condition
-	UpdatingClusterReason = "Updating Cluster"
-	UpgradeErrorReason    = "Upgrade Error"
+	ClusterConditionJobSucceeded ClusterConditionType = "JobSucceeded"
+	ClusterConditionError                             = "Error"
 )
 
 // MembersStatus is the status of the members of the cluster with both
 // ready and unready node membership lists
 type MembersStatus struct {
 	//+nullable
-	Ready []string `json:"ready,omitempty"`
+	Succeeded []string `json:"succeeded,omitempty"`
 	//+nullable
-	Unready []string `json:"unready,omitempty"`
+	Unsucceeded []string `json:"unsucceeded,omitempty"`
+	//+nullable
+	Failed []string `json:"failed,omitempty"`
 }
 
 // ClusterCondition shows the current condition of a cluster.
@@ -48,7 +45,7 @@ type ClusterCondition struct {
 	LastTransitionTime string `json:"lastTransitionTime,omitempty"`
 }
 
-// SeatunnelJobStatus defines the observed state of KafkaCluster
+// SeatunnelJobStatus defines the observed state of the seatunneljob
 type SeatunnelJobStatus struct {
 	// Members is the members in the cluster
 	Members MembersStatus `json:"members,omitempty"`
@@ -56,21 +53,11 @@ type SeatunnelJobStatus struct {
 	// Replicas is the number of desired replicas in the cluster
 	Replicas int32 `json:"replicas,omitempty"`
 
-	// ReadyReplicas is the number of ready replicas in the cluster
-	ReadyReplicas int32 `json:"readyReplicas,omitempty"`
+	// SucceededReplicas is the number of succeeded replicas in the cluster
+	SucceededReplicas int32 `json:"succeededReplicas,omitempty"`
 
-	// InternalClientEndpoint is the internal client IP and port
-	InternalClientEndpoint string `json:"internalClientEndpoint,omitempty"`
-
-	// ExternalClientEndpoint is the internal client IP and port
-	ExternalClientEndpoint string `json:"externalClientEndpoint,omitempty"`
-
-	//MetaRootCreated bool `json:"metaRootCreated,omitempty"`
-
-	// CurrentVersion is the current cluster version
-	CurrentVersion string `json:"currentVersion,omitempty"`
-
-	TargetVersion string `json:"targetVersion,omitempty"`
+	// Completed is status of the seatunneljob
+	Completed bool `json:"completed"`
 
 	// Conditions list all the applied conditions
 	Conditions []ClusterCondition `json:"conditions,omitempty"`
@@ -79,8 +66,7 @@ type SeatunnelJobStatus struct {
 func (zs *SeatunnelJobStatus) Init() {
 	// Initialise conditions
 	conditionTypes := []ClusterConditionType{
-		ClusterConditionPodsReady,
-		ClusterConditionUpgrading,
+		ClusterConditionJobSucceeded,
 		ClusterConditionError,
 	}
 	for _, conditionType := range conditionTypes {
@@ -102,23 +88,13 @@ func newClusterCondition(condType ClusterConditionType, status corev1.ConditionS
 	}
 }
 
-func (zs *SeatunnelJobStatus) SetPodsReadyConditionTrue() {
-	c := newClusterCondition(ClusterConditionPodsReady, corev1.ConditionTrue, "", "")
+func (zs *SeatunnelJobStatus) SetJobSucceededConditionTrue() {
+	c := newClusterCondition(ClusterConditionJobSucceeded, corev1.ConditionTrue, "", "")
 	zs.setClusterCondition(*c)
 }
 
-func (zs *SeatunnelJobStatus) SetPodsReadyConditionFalse() {
-	c := newClusterCondition(ClusterConditionPodsReady, corev1.ConditionFalse, "", "")
-	zs.setClusterCondition(*c)
-}
-
-func (zs *SeatunnelJobStatus) SetUpgradingConditionTrue(reason, message string) {
-	c := newClusterCondition(ClusterConditionUpgrading, corev1.ConditionTrue, reason, message)
-	zs.setClusterCondition(*c)
-}
-
-func (zs *SeatunnelJobStatus) SetUpgradingConditionFalse() {
-	c := newClusterCondition(ClusterConditionUpgrading, corev1.ConditionFalse, "", "")
+func (zs *SeatunnelJobStatus) SetJobSucceededConditionFalse() {
+	c := newClusterCondition(ClusterConditionJobSucceeded, corev1.ConditionFalse, "", "")
 	zs.setClusterCondition(*c)
 }
 
@@ -165,48 +141,10 @@ func (zs *SeatunnelJobStatus) setClusterCondition(newCondition ClusterCondition)
 	zs.Conditions[position] = *existingCondition
 }
 
-func (zs *SeatunnelJobStatus) IsClusterInUpgradeFailedState() bool {
-	_, errorCondition := zs.GetClusterCondition(ClusterConditionError)
-	if errorCondition == nil {
-		return false
-	}
-	if errorCondition.Status == corev1.ConditionTrue && errorCondition.Reason == "UpgradeFailed" {
-		return true
-	}
-	return false
-}
-
-func (zs *SeatunnelJobStatus) IsClusterInUpgradingState() bool {
-	_, upgradeCondition := zs.GetClusterCondition(ClusterConditionUpgrading)
-	if upgradeCondition == nil {
-		return false
-	}
-	if upgradeCondition.Status == corev1.ConditionTrue {
-		return true
-	}
-	return false
-}
-
-func (zs *SeatunnelJobStatus) IsClusterInReadyState() bool {
-	_, readyCondition := zs.GetClusterCondition(ClusterConditionPodsReady)
+func (zs *SeatunnelJobStatus) IsClusterInSucceededState() bool {
+	_, readyCondition := zs.GetClusterCondition(ClusterConditionJobSucceeded)
 	if readyCondition != nil && readyCondition.Status == corev1.ConditionTrue {
 		return true
 	}
 	return false
-}
-
-func (zs *SeatunnelJobStatus) UpdateProgress(reason, updatedReplicas string) {
-	if zs.IsClusterInUpgradingState() {
-		// Set the upgrade condition reason to be UpgradingClusterReason, message to be the upgradedReplicas
-		zs.SetUpgradingConditionTrue(reason, updatedReplicas)
-	}
-}
-
-func (zs *SeatunnelJobStatus) GetLastCondition() (lastCondition *ClusterCondition) {
-	if zs.IsClusterInUpgradingState() {
-		_, lastCondition := zs.GetClusterCondition(ClusterConditionUpgrading)
-		return lastCondition
-	}
-	// nothing to do if we are not upgrading
-	return nil
 }

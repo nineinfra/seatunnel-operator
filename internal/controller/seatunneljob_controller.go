@@ -100,34 +100,33 @@ func (r *SeatunnelJobReconciler) reconcileJobStatus(job *seatunnelv1.SeatunnelJo
 		return err
 	}
 	var (
-		readyMembers   []string
-		unreadyMembers []string
+		succeededMembers   []string
+		unsucceededMembers []string
+		failedMembers      []string
 	)
 	for _, p := range existsPods.Items {
-		ready := true
-		for _, c := range p.Status.ContainerStatuses {
-			if !c.Ready {
-				ready = false
-			}
-		}
-		if ready {
-			readyMembers = append(readyMembers, p.Name)
-		} else {
-			unreadyMembers = append(unreadyMembers, p.Name)
+		switch p.Status.Phase {
+		case corev1.PodSucceeded:
+			succeededMembers = append(succeededMembers, p.Name)
+		case corev1.PodFailed:
+			failedMembers = append(failedMembers, p.Name)
+		default:
+			unsucceededMembers = append(unsucceededMembers, p.Name)
 		}
 	}
-	job.Status.Members.Ready = readyMembers
-	job.Status.Members.Unready = unreadyMembers
+	job.Status.Members.Succeeded = succeededMembers
+	job.Status.Members.Unsucceeded = unsucceededMembers
+	job.Status.Members.Failed = failedMembers
 
-	r.logger.Info("Updating cluster status")
-	if job.Status.ReadyReplicas == job.Spec.Resource.Replicas {
-		job.Status.SetPodsReadyConditionTrue()
+	job.Status.SucceededReplicas = int32(len(succeededMembers))
+	if job.Status.SucceededReplicas == 1 {
+		job.Status.SetJobSucceededConditionTrue()
+		job.Status.Completed = true
 	} else {
-		job.Status.SetPodsReadyConditionFalse()
+		job.Status.SetJobSucceededConditionFalse()
+		job.Status.Completed = false
 	}
-	if job.Status.CurrentVersion == "" && job.Status.IsClusterInReadyState() {
-		job.Status.CurrentVersion = job.Spec.Image.Tag
-	}
+	r.logger.Info("Updating SeatunnelJob status")
 	return r.Client.Status().Update(context.TODO(), job)
 }
 

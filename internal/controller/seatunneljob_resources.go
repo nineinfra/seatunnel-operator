@@ -10,6 +10,7 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"os"
 	ctrl "sigs.k8s.io/controller-runtime"
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"strings"
@@ -19,7 +20,7 @@ import (
 )
 
 func getReplicas(job *seatunnelv1.SeatunnelJob) int32 {
-	if job.Spec.Resource.Replicas != 0 && job.Spec.Resource.Replicas%2 != 0 {
+	if job.Spec.Resource.Replicas != 0 {
 		return job.Spec.Resource.Replicas
 	}
 	return DefaultReplicas
@@ -362,6 +363,8 @@ func (r *SeatunnelJobReconciler) constructPodSpec(job *seatunnelv1.SeatunnelJob)
 		"/opt/seatunnel/bin/start-seatunnel-spark-3-connector-v2.sh",
 		"--config",
 		DefaultConfFile,
+		"--master",
+		fmt.Sprintf("k8s://https://%s:%s", os.Getenv("KUBERNETES_SERVICE_HOST"), os.Getenv("KUBERNETES_SERVICE_PORT")),
 	}
 	return &corev1.PodSpec{
 		Containers: []corev1.Container{
