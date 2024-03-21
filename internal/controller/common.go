@@ -7,35 +7,35 @@ import (
 	"strings"
 )
 
-func NineResourceName(cluster *seatunnelv1.SeatunnelJob, suffixs ...string) string {
-	return cluster.Name + strings.Join(suffixs, "-")
+func NineResourceName(job *seatunnelv1.SeatunnelJob, suffixs ...string) string {
+	return job.Name + strings.Join(suffixs, "-")
 }
 
-func ClusterResourceName(cluster *seatunnelv1.SeatunnelJob, suffixs ...string) string {
-	return cluster.Name + DefaultNameSuffix + strings.Join(suffixs, "-")
+func ClusterResourceName(job *seatunnelv1.SeatunnelJob, suffixs ...string) string {
+	return job.Name + DefaultNameSuffix + strings.Join(suffixs, "-")
 }
 
-func ClusterResourceLabels(cluster *seatunnelv1.SeatunnelJob) map[string]string {
+func ClusterResourceLabels(job *seatunnelv1.SeatunnelJob) map[string]string {
 	return map[string]string{
-		"cluster": cluster.Name,
+		"cluster": job.Name,
 		"app":     DefaultClusterSign,
 	}
 }
 
-func GetStorageClassName(cluster *seatunnelv1.SeatunnelJob) string {
-	if cluster.Spec.Resource.StorageClass != "" {
-		return cluster.Spec.Resource.StorageClass
+func GetStorageClassName(job *seatunnelv1.SeatunnelJob) string {
+	if job.Spec.Resource.StorageClass != "" {
+		return job.Spec.Resource.StorageClass
 	}
 	return DefaultStorageClass
 }
 
-func GetFullSvcName(cluster *seatunnelv1.SeatunnelJob) string {
-	return fmt.Sprintf("%s.%s.svc.%s", ClusterResourceName(cluster), cluster.Namespace, GetClusterDomain(cluster))
+func GetFullSvcName(job *seatunnelv1.SeatunnelJob) string {
+	return fmt.Sprintf("%s.%s.svc.%s", ClusterResourceName(job), job.Namespace, GetClusterDomain(job))
 }
 
-func GetClusterDomain(cluster *seatunnelv1.SeatunnelJob) string {
-	if cluster.Spec.K8sConf != nil {
-		if value, ok := cluster.Spec.K8sConf[DefaultClusterDomainName]; ok {
+func GetClusterDomain(job *seatunnelv1.SeatunnelJob) string {
+	if job.Spec.K8sConf != nil {
+		if value, ok := job.Spec.K8sConf[DefaultClusterDomainName]; ok {
 			return value
 		}
 	}

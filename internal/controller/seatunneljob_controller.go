@@ -20,7 +20,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/go-logr/logr"
-	appsv1 "k8s.io/api/apps/v1"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -36,12 +36,14 @@ import (
 	seatunnelv1 "github.com/nineinfra/seatunnel-operator/api/v1"
 )
 
-type reconcileFun func(ctx context.Context, job *seatunnelv1.SeatunnelJob, logger logr.Logger) error
+type reconcileFun func(job *seatunnelv1.SeatunnelJob) error
 
 // SeatunnelJobReconciler reconciles a SeatunnelJob object
 type SeatunnelJobReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
+	logger logr.Logger
+	ctx    context.Context
 }
 
 //+kubebuilder:rbac:groups=seatunnel.nineinfra.tech,resources=seatunneljobs,verbs=get;list;watch;create;update;patch;delete
@@ -58,26 +60,26 @@ type SeatunnelJobReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.16.0/pkg/reconcile
 func (r *SeatunnelJobReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	logger := log.FromContext(ctx)
-
+	r.logger = log.FromContext(ctx)
+	r.ctx = ctx
 	var job seatunnelv1.SeatunnelJob
 	err := r.Get(ctx, req.NamespacedName, &job)
 	if err != nil {
 		if errors.IsNotFound(err) {
-			logger.Info("Object not found, it could have been deleted")
+			r.logger.Info("Object not found, it could have been deleted")
 		} else {
-			logger.Error(err, "Error occurred during fetching the object")
+			r.logger.Error(err, "Error occurred during fetching the object")
 		}
 		return ctrl.Result{}, err
 	}
 	requestArray := strings.Split(fmt.Sprint(req), "/")
 	requestName := requestArray[1]
-	logger.Info(fmt.Sprintf("Reconcile requestName %s,job.Name %s", requestName, job.Name))
+	r.logger.Info(fmt.Sprintf("Reconcile requestName %s,job.Name %s", requestName, job.Name))
 	if requestName == job.Name {
-		logger.Info("Create or update clusters")
-		err = r.reconcileJobs(ctx, &job, logger)
+		r.logger.Info("Create or update clusters")
+		err = r.reconcileJobs(&job)
 		if err != nil {
-			logger.Error(err, "Error occurred during create or update clusters")
+			r.logger.Error(err, "Error occurred during create or update clusters")
 			return ctrl.Result{}, err
 		}
 	}
@@ -85,7 +87,7 @@ func (r *SeatunnelJobReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	return ctrl.Result{}, nil
 }
 
-func (r *SeatunnelJobReconciler) reconcileJobStatus(ctx context.Context, job *seatunnelv1.SeatunnelJob, logger logr.Logger) (err error) {
+func (r *SeatunnelJobReconciler) reconcileJobStatus(job *seatunnelv1.SeatunnelJob) (err error) {
 	job.Status.Init()
 	existsPods := &corev1.PodList{}
 	labelSelector := labels.SelectorFromSet(ClusterResourceLabels(job))
@@ -117,7 +119,7 @@ func (r *SeatunnelJobReconciler) reconcileJobStatus(ctx context.Context, job *se
 	job.Status.Members.Ready = readyMembers
 	job.Status.Members.Unready = unreadyMembers
 
-	logger.Info("Updating cluster status")
+	r.logger.Info("Updating cluster status")
 	if job.Status.ReadyReplicas == job.Spec.Resource.Replicas {
 		job.Status.SetPodsReadyConditionTrue()
 	} else {
@@ -129,7 +131,7 @@ func (r *SeatunnelJobReconciler) reconcileJobStatus(ctx context.Context, job *se
 	return r.Client.Status().Update(context.TODO(), job)
 }
 
-func (r *SeatunnelJobReconciler) reconcileServiceAccount(ctx context.Context, job *seatunnelv1.SeatunnelJob, logger logr.Logger) (err error) {
+func (r *SeatunnelJobReconciler) reconcileServiceAccount(job *seatunnelv1.SeatunnelJob) (err error) {
 	desiredSA, err := r.constructServiceAccount(job)
 	if err != nil {
 		return err
@@ -137,16 +139,20 @@ func (r *SeatunnelJobReconciler) reconcileServiceAccount(ctx context.Context, jo
 	existsSA := &corev1.ServiceAccount{}
 	err = r.Client.Get(context.TODO(), types.NamespacedName{Name: desiredSA.Name, Namespace: desiredSA.Namespace}, existsSA)
 	if err != nil && errors.IsNotFound(err) {
-		logger.Info("Creating a new ServiceAccount")
+		r.logger.Info("Creating a new ServiceAccount")
 		err = r.Client.Create(context.TODO(), desiredSA)
 		if err != nil {
 			return err
 		}
+	} else if err != nil {
+		return err
+	} else {
+		//Todo
 	}
 	return nil
 }
 
-func (r *SeatunnelJobReconciler) reconcileRole(ctx context.Context, job *seatunnelv1.SeatunnelJob, logger logr.Logger) (err error) {
+func (r *SeatunnelJobReconciler) reconcileRole(job *seatunnelv1.SeatunnelJob) (err error) {
 	desiredRole, err := r.constructRole(job)
 	if err != nil {
 		return err
@@ -154,8 +160,17 @@ func (r *SeatunnelJobReconciler) reconcileRole(ctx context.Context, job *seatunn
 	existsRole := &rbacv1.Role{}
 	err = r.Client.Get(context.TODO(), types.NamespacedName{Name: desiredRole.Name, Namespace: desiredRole.Namespace}, existsRole)
 	if err != nil && errors.IsNotFound(err) {
-		logger.Info("Creating a new Role")
+		r.logger.Info("Creating a new Role")
 		err = r.Client.Create(context.TODO(), desiredRole)
+		if err != nil {
+			return err
+		}
+	} else if err != nil {
+		return err
+	} else {
+		r.logger.Info("Updating existing Role")
+		existsRole.Rules = desiredRole.Rules
+		err = r.Client.Update(context.TODO(), existsRole)
 		if err != nil {
 			return err
 		}
@@ -163,7 +178,7 @@ func (r *SeatunnelJobReconciler) reconcileRole(ctx context.Context, job *seatunn
 	return nil
 }
 
-func (r *SeatunnelJobReconciler) reconcileRoleBinding(ctx context.Context, job *seatunnelv1.SeatunnelJob, logger logr.Logger) (err error) {
+func (r *SeatunnelJobReconciler) reconcileRoleBinding(job *seatunnelv1.SeatunnelJob) (err error) {
 	desiredRoleBinding, err := r.constructRoleBinding(job)
 	if err != nil {
 		return err
@@ -171,16 +186,20 @@ func (r *SeatunnelJobReconciler) reconcileRoleBinding(ctx context.Context, job *
 	existsRoleBinding := &rbacv1.RoleBinding{}
 	err = r.Client.Get(context.TODO(), types.NamespacedName{Name: desiredRoleBinding.Name, Namespace: desiredRoleBinding.Namespace}, existsRoleBinding)
 	if err != nil && errors.IsNotFound(err) {
-		logger.Info("Creating a new RoleBinding")
+		r.logger.Info("Creating a new RoleBinding")
 		err = r.Client.Create(context.TODO(), desiredRoleBinding)
 		if err != nil {
 			return err
 		}
+	} else if err != nil {
+		return err
+	} else {
+		//Todo
 	}
 	return nil
 }
 
-func (r *SeatunnelJobReconciler) reconcileConfigMap(ctx context.Context, job *seatunnelv1.SeatunnelJob, logger logr.Logger) (err error) {
+func (r *SeatunnelJobReconciler) reconcileConfigMap(job *seatunnelv1.SeatunnelJob) (err error) {
 	desiredCm, err := r.constructConfigMap(job)
 	if err != nil {
 		return err
@@ -188,7 +207,7 @@ func (r *SeatunnelJobReconciler) reconcileConfigMap(ctx context.Context, job *se
 	existsCm := &corev1.ConfigMap{}
 	err = r.Client.Get(context.TODO(), types.NamespacedName{Name: desiredCm.Name, Namespace: desiredCm.Namespace}, existsCm)
 	if err != nil && errors.IsNotFound(err) {
-		logger.Info("Creating a new ConfigMap")
+		r.logger.Info("Creating a new ConfigMap")
 		err = r.Client.Create(context.TODO(), desiredCm)
 		if err != nil {
 			return err
@@ -196,7 +215,7 @@ func (r *SeatunnelJobReconciler) reconcileConfigMap(ctx context.Context, job *se
 	} else if err != nil {
 		return err
 	} else {
-		logger.Info("Updating existing ConfigMap")
+		r.logger.Info("Updating existing ConfigMap")
 		existsCm.Data = desiredCm.Data
 		err = r.Client.Update(context.TODO(), existsCm)
 		if err != nil {
@@ -206,28 +225,29 @@ func (r *SeatunnelJobReconciler) reconcileConfigMap(ctx context.Context, job *se
 	return nil
 }
 
-func (r *SeatunnelJobReconciler) reconcileWorkload(ctx context.Context, job *seatunnelv1.SeatunnelJob, logger logr.Logger) (err error) {
+func (r *SeatunnelJobReconciler) reconcileWorkload(job *seatunnelv1.SeatunnelJob) (err error) {
 	desiredJob, err := r.constructWorkload(job)
 	if err != nil {
 		return err
 	}
-	existsSts := &appsv1.StatefulSet{}
-	err = r.Client.Get(context.TODO(), types.NamespacedName{Name: desiredJob.Name, Namespace: desiredJob.Namespace}, existsSts)
+	existsJob := &batchv1.Job{}
+	err = r.Client.Get(context.TODO(), types.NamespacedName{Name: desiredJob.Name, Namespace: desiredJob.Namespace}, existsJob)
 	if err != nil && errors.IsNotFound(err) {
-		logger.Info("Creating a new SeatunnelJob")
+		r.logger.Info("Creating a new SeatunnelJob")
 		err = r.Client.Create(context.TODO(), desiredJob)
 		if err != nil {
 			return err
 		}
-		return nil
 	} else if err != nil {
 		return err
+	} else {
+		//Todo
 	}
-	logger.Info("Creating a new SeatunnelJob successfully")
+	r.logger.Info(fmt.Sprintf("Reconcile the SeatunnelJob %s successfully", desiredJob.Name))
 	return nil
 }
 
-func (r *SeatunnelJobReconciler) reconcileJobs(ctx context.Context, job *seatunnelv1.SeatunnelJob, logger logr.Logger) error {
+func (r *SeatunnelJobReconciler) reconcileJobs(job *seatunnelv1.SeatunnelJob) error {
 	for _, fun := range []reconcileFun{
 		r.reconcileConfigMap,
 		r.reconcileServiceAccount,
@@ -236,7 +256,7 @@ func (r *SeatunnelJobReconciler) reconcileJobs(ctx context.Context, job *seatunn
 		r.reconcileWorkload,
 		r.reconcileJobStatus,
 	} {
-		if err := fun(ctx, job, logger); err != nil {
+		if err := fun(job); err != nil {
 			return err
 		}
 	}

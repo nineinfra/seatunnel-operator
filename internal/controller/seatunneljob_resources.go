@@ -11,12 +11,16 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
+	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"strings"
+
+	kyuubiv1 "github.com/nineinfra/kyuubi-operator/api/v1alpha1"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 )
 
-func getReplicas(cluster *seatunnelv1.SeatunnelJob) int32 {
-	if cluster.Spec.Resource.Replicas != 0 && cluster.Spec.Resource.Replicas%2 != 0 {
-		return cluster.Spec.Resource.Replicas
+func getReplicas(job *seatunnelv1.SeatunnelJob) int32 {
+	if job.Spec.Resource.Replicas != 0 && job.Spec.Resource.Replicas%2 != 0 {
+		return job.Spec.Resource.Replicas
 	}
 	return DefaultReplicas
 }
@@ -180,20 +184,44 @@ func constructLogConfig() string {
 	return map2String(tmpConf, 0)
 }
 
-func getImageConfig(cluster *seatunnelv1.SeatunnelJob) seatunnelv1.ImageConfig {
+func getImageConfig(job *seatunnelv1.SeatunnelJob) seatunnelv1.ImageConfig {
 	ic := seatunnelv1.ImageConfig{
-		Repository:  cluster.Spec.Image.Repository,
-		PullSecrets: cluster.Spec.Image.PullSecrets,
+		Repository:  job.Spec.Image.Repository,
+		PullSecrets: job.Spec.Image.PullSecrets,
 	}
-	ic.Tag = cluster.Spec.Image.Tag
+	ic.Tag = job.Spec.Image.Tag
 	if ic.Tag == "" {
-		ic.Tag = cluster.Spec.Version
+		ic.Tag = job.Spec.Version
 	}
-	ic.PullPolicy = cluster.Spec.Image.PullPolicy
+	ic.PullPolicy = job.Spec.Image.PullPolicy
 	if ic.PullPolicy == "" {
 		ic.PullPolicy = string(corev1.PullIfNotPresent)
 	}
 	return ic
+}
+
+func (r *SeatunnelJobReconciler) getNameSpacedKyuubiCluster(job *seatunnelv1.SeatunnelJob) (*kyuubiv1.KyuubiCluster, error) {
+	metav1.AddToGroupVersion(r.Scheme, kyuubiv1.GroupVersion)
+	utilruntime.Must(kyuubiv1.AddToScheme(r.Scheme))
+
+	existsKCList := &kyuubiv1.KyuubiClusterList{}
+	err := r.Client.List(context.TODO(), existsKCList, &ctrlclient.ListOptions{Namespace: job.Namespace})
+	if err != nil {
+		r.logger.Info(fmt.Sprintf("%s%s", "Get kyuubiclusterlist failed,err:", err.Error()))
+		return nil, err
+	}
+	if len(existsKCList.Items) < 1 {
+		return nil, err
+	}
+	return &existsKCList.Items[0], nil
+}
+
+func (r *SeatunnelJobReconciler) getClusterRefsConfigMapName(job *seatunnelv1.SeatunnelJob) string {
+	kc, err := r.getNameSpacedKyuubiCluster(job)
+	if err != nil {
+		return NineResourceName(job, DefaultClusterRefsConfigNameSuffix)
+	}
+	return fmt.Sprintf("%s%s", kc.Name, DefaultClusterRefsConfigNameSuffix)
 }
 
 func (r *SeatunnelJobReconciler) constructConfigMap(job *seatunnelv1.SeatunnelJob) (*corev1.ConfigMap, error) {
@@ -218,19 +246,19 @@ func (r *SeatunnelJobReconciler) constructConfigMap(job *seatunnelv1.SeatunnelJo
 	return cm, nil
 }
 
-func (r *SeatunnelJobReconciler) getClusterRefsConfigMap(cluster *seatunnelv1.SeatunnelJob) *corev1.ConfigMap {
+func (r *SeatunnelJobReconciler) getClusterRefsConfigMap(job *seatunnelv1.SeatunnelJob) *corev1.ConfigMap {
 	clusterRefsCM := &corev1.ConfigMap{}
-	_ = r.Client.Get(context.TODO(), types.NamespacedName{Name: NineResourceName(cluster, DefaultClusterRefsConfigNameSuffix), Namespace: cluster.Namespace}, clusterRefsCM)
+	_ = r.Client.Get(context.TODO(), types.NamespacedName{Name: r.getClusterRefsConfigMapName(job), Namespace: job.Namespace}, clusterRefsCM)
 	return clusterRefsCM
 }
 
-func (r *SeatunnelJobReconciler) constructClusterRefsVolumeMounts(cluster *seatunnelv1.SeatunnelJob) []corev1.VolumeMount {
-	clusterRefsCM := r.getClusterRefsConfigMap(cluster)
+func (r *SeatunnelJobReconciler) constructClusterRefsVolumeMounts(job *seatunnelv1.SeatunnelJob) []corev1.VolumeMount {
+	clusterRefsCM := r.getClusterRefsConfigMap(job)
 	volumeMounts := make([]corev1.VolumeMount, 0)
 	for _, confFile := range ClusterRefsConfFileList {
 		if _, ok := clusterRefsCM.Data[confFile]; ok {
 			volumeMounts = append(volumeMounts, corev1.VolumeMount{
-				Name:      NineResourceName(cluster, DefaultClusterRefsConfigNameSuffix),
+				Name:      r.getClusterRefsConfigMapName(job),
 				MountPath: fmt.Sprintf("%s/%s", DefaultSparkConfDir, confFile),
 				SubPath:   confFile,
 			})
@@ -239,8 +267,8 @@ func (r *SeatunnelJobReconciler) constructClusterRefsVolumeMounts(cluster *seatu
 	return volumeMounts
 }
 
-func (r *SeatunnelJobReconciler) constructClusterRefsVolumes(cluster *seatunnelv1.SeatunnelJob) []corev1.Volume {
-	clusterRefsCM := r.getClusterRefsConfigMap(cluster)
+func (r *SeatunnelJobReconciler) constructClusterRefsVolumes(job *seatunnelv1.SeatunnelJob) []corev1.Volume {
+	clusterRefsCM := r.getClusterRefsConfigMap(job)
 	keyToPaths := make([]corev1.KeyToPath, 0)
 	for _, confFile := range ClusterRefsConfFileList {
 		if _, ok := clusterRefsCM.Data[confFile]; ok {
@@ -252,11 +280,11 @@ func (r *SeatunnelJobReconciler) constructClusterRefsVolumes(cluster *seatunnelv
 	}
 	return []corev1.Volume{
 		{
-			Name: NineResourceName(cluster, DefaultClusterRefsConfigNameSuffix),
+			Name: r.getClusterRefsConfigMapName(job),
 			VolumeSource: corev1.VolumeSource{
 				ConfigMap: &corev1.ConfigMapVolumeSource{
 					LocalObjectReference: corev1.LocalObjectReference{
-						Name: NineResourceName(cluster, DefaultClusterRefsConfigNameSuffix),
+						Name: r.getClusterRefsConfigMapName(job),
 					},
 					Items: keyToPaths,
 				},
@@ -265,34 +293,34 @@ func (r *SeatunnelJobReconciler) constructClusterRefsVolumes(cluster *seatunnelv
 	}
 }
 
-func (r *SeatunnelJobReconciler) constructVolumeMounts(cluster *seatunnelv1.SeatunnelJob) []corev1.VolumeMount {
+func (r *SeatunnelJobReconciler) constructVolumeMounts(job *seatunnelv1.SeatunnelJob) []corev1.VolumeMount {
 	volumeMounts := []corev1.VolumeMount{
 		{
-			Name:      ClusterResourceName(cluster, DefaultConfigNameSuffix),
+			Name:      ClusterResourceName(job, DefaultConfigNameSuffix),
 			MountPath: fmt.Sprintf("%s/%s", DefaultConfPath, DefaultConfigFileName),
 			SubPath:   DefaultConfigFileName,
 		},
 		{
-			Name:      ClusterResourceName(cluster, DefaultConfigNameSuffix),
+			Name:      ClusterResourceName(job, DefaultConfigNameSuffix),
 			MountPath: fmt.Sprintf("%s/%s", DefaultConfPath, DefaultLogConfigFileName),
 			SubPath:   DefaultLogConfigFileName,
 		},
 	}
-	clusterRefsVolumeMounts := r.constructClusterRefsVolumeMounts(cluster)
+	clusterRefsVolumeMounts := r.constructClusterRefsVolumeMounts(job)
 	for _, v := range clusterRefsVolumeMounts {
 		volumeMounts = append(volumeMounts, v)
 	}
 	return volumeMounts
 }
 
-func (r *SeatunnelJobReconciler) constructVolumes(cluster *seatunnelv1.SeatunnelJob) []corev1.Volume {
+func (r *SeatunnelJobReconciler) constructVolumes(job *seatunnelv1.SeatunnelJob) []corev1.Volume {
 	volumes := []corev1.Volume{
 		{
-			Name: ClusterResourceName(cluster, DefaultConfigNameSuffix),
+			Name: ClusterResourceName(job, DefaultConfigNameSuffix),
 			VolumeSource: corev1.VolumeSource{
 				ConfigMap: &corev1.ConfigMapVolumeSource{
 					LocalObjectReference: corev1.LocalObjectReference{
-						Name: ClusterResourceName(cluster, DefaultConfigNameSuffix),
+						Name: ClusterResourceName(job, DefaultConfigNameSuffix),
 					},
 					Items: []corev1.KeyToPath{
 						{
@@ -309,7 +337,7 @@ func (r *SeatunnelJobReconciler) constructVolumes(cluster *seatunnelv1.Seatunnel
 		},
 	}
 
-	clusterRefsVolumes := r.constructClusterRefsVolumes(cluster)
+	clusterRefsVolumes := r.constructClusterRefsVolumes(job)
 	for _, v := range clusterRefsVolumes {
 		volumes = append(volumes, v)
 	}

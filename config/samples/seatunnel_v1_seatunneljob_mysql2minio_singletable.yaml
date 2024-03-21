@@ -7,7 +7,7 @@ metadata:
     app.kubernetes.io/part-of: seatunnel-operator
     app.kubernetes.io/managed-by: kustomize
     app.kubernetes.io/created-by: seatunnel-operator
-  name: nine-test-nine
+  name: nine-test
 spec:
   version: "v2.3.4"
   image:
