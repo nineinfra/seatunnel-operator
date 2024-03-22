@@ -24,7 +24,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"strings"
 
@@ -85,49 +84,6 @@ func (r *SeatunnelJobReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	}
 
 	return ctrl.Result{}, nil
-}
-
-func (r *SeatunnelJobReconciler) reconcileJobStatus(job *seatunnelv1.SeatunnelJob) (err error) {
-	job.Status.Init()
-	existsPods := &corev1.PodList{}
-	labelSelector := labels.SelectorFromSet(ClusterResourceLabels(job))
-	listOps := &client.ListOptions{
-		Namespace:     job.Namespace,
-		LabelSelector: labelSelector,
-	}
-	err = r.Client.List(context.TODO(), existsPods, listOps)
-	if err != nil {
-		return err
-	}
-	var (
-		succeededMembers   []string
-		unsucceededMembers []string
-		failedMembers      []string
-	)
-	for _, p := range existsPods.Items {
-		switch p.Status.Phase {
-		case corev1.PodSucceeded:
-			succeededMembers = append(succeededMembers, p.Name)
-		case corev1.PodFailed:
-			failedMembers = append(failedMembers, p.Name)
-		default:
-			unsucceededMembers = append(unsucceededMembers, p.Name)
-		}
-	}
-	job.Status.Members.Succeeded = succeededMembers
-	job.Status.Members.Unsucceeded = unsucceededMembers
-	job.Status.Members.Failed = failedMembers
-
-	job.Status.SucceededReplicas = int32(len(succeededMembers))
-	if job.Status.SucceededReplicas == 1 {
-		job.Status.SetJobSucceededConditionTrue()
-		job.Status.Completed = true
-	} else {
-		job.Status.SetJobSucceededConditionFalse()
-		job.Status.Completed = false
-	}
-	r.logger.Info("Updating SeatunnelJob status")
-	return r.Client.Status().Update(context.TODO(), job)
 }
 
 func (r *SeatunnelJobReconciler) reconcileServiceAccount(job *seatunnelv1.SeatunnelJob) (err error) {
@@ -253,7 +209,6 @@ func (r *SeatunnelJobReconciler) reconcileJobs(job *seatunnelv1.SeatunnelJob) er
 		r.reconcileRole,
 		r.reconcileRoleBinding,
 		r.reconcileWorkload,
-		r.reconcileJobStatus,
 	} {
 		if err := fun(job); err != nil {
 			return err

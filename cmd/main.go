@@ -96,6 +96,15 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "SeatunnelJob")
 		os.Exit(1)
 	}
+
+	if err = (&controller.JobReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Job")
+		os.Exit(1)
+	}
+
 	if os.Getenv("ENABLE_WEBHOOKS") != "false" {
 		if err = (&seatunnelv1.SeatunnelJob{}).SetupWebhookWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create webhook", "webhook", "SeatunnelJob")
