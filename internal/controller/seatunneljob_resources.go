@@ -13,6 +13,7 @@ import (
 	"os"
 	ctrl "sigs.k8s.io/controller-runtime"
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
+	"strconv"
 	"strings"
 
 	kyuubiv1 "github.com/nineinfra/kyuubi-operator/api/v1alpha1"
@@ -41,7 +42,7 @@ func checkSinkTypeSupported(sinkType string) bool {
 func writeEnvConfig(conf map[string]string) string {
 	var sb strings.Builder
 	sb.WriteString("env{\n")
-	sb.WriteString(map2String(conf, 2))
+	sb.WriteString(map2String(conf, 2, seatunnelv1.NINEINFRA_NAMED_ENV_LIST))
 	sb.WriteString("}\n")
 	return sb.String()
 }
@@ -56,7 +57,7 @@ func writeSourceConfig(source *seatunnelv1.SourceConfig) string {
 		writeSpaces(&sb, 2)
 		sb.WriteString(fmt.Sprintf("%s{\n", source.Type))
 		if source.Conf != nil {
-			sb.WriteString(map2String(source.Conf, 4))
+			sb.WriteString(map2String(source.Conf, 4, nil))
 		}
 		if source.TableList != nil {
 			writeSpaces(&sb, 4)
@@ -64,7 +65,7 @@ func writeSourceConfig(source *seatunnelv1.SourceConfig) string {
 			for _, v := range source.TableList {
 				writeSpaces(&sb, 6)
 				sb.WriteString("{\n")
-				sb.WriteString(map2String(v, 8))
+				sb.WriteString(map2String(v, 8, nil))
 				writeSpaces(&sb, 6)
 				sb.WriteString("},\n")
 			}
@@ -76,7 +77,7 @@ func writeSourceConfig(source *seatunnelv1.SourceConfig) string {
 			sb.WriteString("schema={\n")
 			writeSpaces(&sb, 6)
 			sb.WriteString("fields{\n")
-			sb.WriteString(map2String(source.Scheme.Fields, 8))
+			sb.WriteString(map2String(source.Scheme.Fields, 8, nil))
 			writeSpaces(&sb, 6)
 			sb.WriteString("}\n")
 			writeSpaces(&sb, 4)
@@ -85,14 +86,14 @@ func writeSourceConfig(source *seatunnelv1.SourceConfig) string {
 		if source.Properties != nil {
 			writeSpaces(&sb, 4)
 			sb.WriteString("properties{\n")
-			sb.WriteString(map2String(source.Properties, 6))
+			sb.WriteString(map2String(source.Properties, 6, nil))
 			writeSpaces(&sb, 4)
 			sb.WriteString("}\n")
 		}
 		if source.ExtraConfig != nil {
 			writeSpaces(&sb, 4)
 			sb.WriteString(fmt.Sprintf("%s.config={", strings.ToLower(source.Type)))
-			sb.WriteString(map2String(source.ExtraConfig, 6))
+			sb.WriteString(map2String(source.ExtraConfig, 6, nil))
 			writeSpaces(&sb, 4)
 			sb.WriteString("}\n")
 		}
@@ -112,13 +113,13 @@ func writeTransformConfig(transform *seatunnelv1.TransformConfig) string {
 	if transform.Type != "" {
 		writeSpaces(&sb, 2)
 		sb.WriteString(fmt.Sprintf("%s{\n", transform.Type))
-		sb.WriteString(map2String(transform.Conf, 4))
+		sb.WriteString(map2String(transform.Conf, 4, nil))
 		if transform.Scheme.Fields != nil {
 			writeSpaces(&sb, 4)
 			sb.WriteString("schema={\n")
 			writeSpaces(&sb, 6)
 			sb.WriteString("fields{\n")
-			sb.WriteString(map2String(transform.Scheme.Fields, 8))
+			sb.WriteString(map2String(transform.Scheme.Fields, 8, nil))
 			writeSpaces(&sb, 6)
 			sb.WriteString("}\n")
 			writeSpaces(&sb, 4)
@@ -141,7 +142,7 @@ func writeSinkConfig(sink *seatunnelv1.SinkConfig) string {
 		writeSpaces(&sb, 2)
 		sb.WriteString(fmt.Sprintf("%s{\n", sink.Type))
 		if sink.Conf != nil {
-			sb.WriteString(map2String(sink.Conf, 4))
+			sb.WriteString(map2String(sink.Conf, 4, nil))
 		}
 		if sink.PartitionBy != nil {
 			writeSpaces(&sb, 4)
@@ -158,7 +159,7 @@ func writeSinkConfig(sink *seatunnelv1.SinkConfig) string {
 		if sink.ExtraConfig != nil {
 			writeSpaces(&sb, 4)
 			sb.WriteString(fmt.Sprintf("%s.config={", strings.ToLower(sink.Type)))
-			sb.WriteString(map2String(sink.ExtraConfig, 6))
+			sb.WriteString(map2String(sink.ExtraConfig, 6, nil))
 			sb.WriteString("}\n")
 		}
 		writeSpaces(&sb, 2)
@@ -182,7 +183,7 @@ func constructJobConfig(job *seatunnelv1.SeatunnelJob) string {
 
 func constructLogConfig() string {
 	tmpConf := DefaultLogConfKeyValue
-	return map2String(tmpConf, 0)
+	return map2String(tmpConf, 0, nil)
 }
 
 func getImageConfig(job *seatunnelv1.SeatunnelJob) seatunnelv1.ImageConfig {
@@ -359,12 +360,27 @@ func (r *SeatunnelJobReconciler) constructPodSpec(job *seatunnelv1.SeatunnelJob)
 	if err != nil {
 		return nil, err
 	}
-	cmdString := []string{
-		"/opt/seatunnel/bin/start-seatunnel-spark-3-connector-v2.sh",
-		"--config",
-		DefaultConfFile,
-		"--master",
-		fmt.Sprintf("k8s://https://%s:%s", os.Getenv("KUBERNETES_SERVICE_HOST"), os.Getenv("KUBERNETES_SERVICE_PORT")),
+	debugMode := GetSeatunnelDebugMode(job)
+	cmdString := make([]string, 0)
+	if debugMode == seatunnelv1.NINEINFRA_ENV_SEATUNNEL_DEBUG_MODE_ON {
+		cmdString = []string{
+			"sleep",
+			strconv.Itoa(GetSeatunnelDebugTime(job)),
+		}
+	} else {
+		seatunnelEngine := GetSeatunnelEngine(job)
+		switch seatunnelEngine {
+		case seatunnelv1.NINEINFRA_ENV_SEATUNNEL_ENGINE_FLINK:
+			//todo
+		case seatunnelv1.NINEINFRA_ENV_SEATUNNEL_ENGINE_SPARK:
+			cmdString = []string{
+				"/opt/seatunnel/bin/start-seatunnel-spark-3-connector-v2.sh",
+				"--config",
+				DefaultConfFile,
+				"--master",
+				fmt.Sprintf("k8s://https://%s:%s", os.Getenv("KUBERNETES_SERVICE_HOST"), os.Getenv("KUBERNETES_SERVICE_PORT")),
+			}
+		}
 	}
 	return &corev1.PodSpec{
 		Containers: []corev1.Container{

@@ -1,15 +1,21 @@
 package controller
 
-import "strings"
+import (
+	"k8s.io/utils/strings/slices"
+	"strings"
+)
 
 func int32Ptr(i int32) *int32 { return &i }
 
-func map2String(kv map[string]string, linePrefixSpaces int) string {
+func map2String(kv map[string]string, linePrefixSpaces int, skipList []string) string {
 	var sb strings.Builder
 	for key, value := range kv {
-		for i := 0; i < linePrefixSpaces; i++ {
-			sb.WriteString(" ")
+		if skipList != nil {
+			if slices.Contains(skipList, key) {
+				continue
+			}
 		}
+		writeSpaces(&sb, linePrefixSpaces)
 		sb.WriteString(key)
 		sb.WriteString("=")
 		sb.WriteString(value)

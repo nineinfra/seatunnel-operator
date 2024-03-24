@@ -1,0 +1,47 @@
+apiVersion: seatunnel.nineinfra.tech/v1
+kind: SeatunnelJob
+metadata:
+  labels:
+    app.kubernetes.io/name: seatunneljob
+    app.kubernetes.io/instance: seatunneljob-sample
+    app.kubernetes.io/part-of: seatunnel-operator
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/created-by: seatunnel-operator
+  name: seatunneljob-sample
+spec:
+  version: "v2.3.4"
+  image:
+    repository: "nineinfra/seatunnel"
+    tag: "v2.3.4"
+    pullPolicy: "IfNotPresent"
+  conf:
+    env:
+      "spark.driver.defaultJavaOptions": "\"--add-exports java.base/sun.nio.ch=ALL-UNNAMED\""
+      "NINEINFRA_ENV_SEATUNNEL_DEBUG_MODE": "on"
+    source:
+      type: Kafka
+      conf:
+        "bootstrap.servers": "\"kafkacluster-sample-kafka:9092\""
+        "topic": "nineinfra"
+    sink:
+      type: S3File
+      conf:
+        "bucket": "\"s3a://nineinfra/datahouse\""
+        "path": "/seatunnel/kafka"
+        "tmp_path": "/tmp/seatunnel"
+        "fs.s3a.endpoint": "\"http://10.104.240.226\""
+        "fs.s3a.aws.credentials.provider": "\"org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider\""
+        "access_key": "0L3XDNU2JP5EQ203HTO5"
+        "secret_key": "WPncfKEg17yUjXLvVBPYZALzcoeGf1KRWWzRgdOe"
+        "custom_filename": "true"
+        "file_name_expression": "\"${now}\""
+        "file_format_type": "csv"
+        "have_partition": "false"
+        "is_partition_field_write_in_file": "false"
+        "is_enable_transaction": "false"
+        "batch_size": "10000000"
+        "compress_codec": "none"
+
+
+
+

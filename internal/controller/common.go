@@ -4,6 +4,7 @@ import (
 	"fmt"
 	seatunnelv1 "github.com/nineinfra/seatunnel-operator/api/v1"
 	corev1 "k8s.io/api/core/v1"
+	"strconv"
 	"strings"
 )
 
@@ -40,6 +41,41 @@ func GetClusterDomain(job *seatunnelv1.SeatunnelJob) string {
 		}
 	}
 	return DefaultClusterDomain
+}
+
+func GetSeatunnelEngine(job *seatunnelv1.SeatunnelJob) string {
+	if job.Spec.Conf.Env != nil {
+		if value, ok := job.Spec.Conf.Env[seatunnelv1.NINEINFRA_ENV_SEATUNNEL_ENGINE]; ok {
+			if value == seatunnelv1.NINEINFRA_ENV_SEATUNNEL_ENGINE_FLINK || value == seatunnelv1.NINEINFRA_ENV_SEATUNNEL_ENGINE_SPARK {
+				return value
+			}
+		}
+	}
+	return seatunnelv1.NINEINFRA_ENV_SEATUNNEL_ENGINE_DEFAULT
+}
+
+func GetSeatunnelDebugMode(job *seatunnelv1.SeatunnelJob) string {
+	if job.Spec.Conf.Env != nil {
+		if value, ok := job.Spec.Conf.Env[seatunnelv1.NINEINFRA_ENV_SEATUNNEL_DEBUG_MODE]; ok {
+			if value == seatunnelv1.NINEINFRA_ENV_SEATUNNEL_DEBUG_MODE_ON ||
+				value == seatunnelv1.NINEINFRA_ENV_SEATUNNEL_DEBUG_MODE_OFF {
+				return value
+			}
+		}
+	}
+	return seatunnelv1.NINEINFRA_ENV_SEATUNNEL_DEBUG_MODE_DEFAULT
+}
+
+func GetSeatunnelDebugTime(job *seatunnelv1.SeatunnelJob) int {
+	if job.Spec.Conf.Env != nil {
+		if value, ok := job.Spec.Conf.Env[seatunnelv1.NINEINFRA_ENV_SEATUNNEL_DEBUG_TIME]; ok {
+			atoi, err := strconv.Atoi(value)
+			if err == nil {
+				return atoi
+			}
+		}
+	}
+	return seatunnelv1.NINEINFRA_ENV_SEATUNNEL_DEBUG_TIME_DEFAULT
 }
 
 func DefaultDownwardAPI() []corev1.EnvVar {
