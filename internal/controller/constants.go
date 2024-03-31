@@ -38,6 +38,9 @@ const (
 	// DefaultHome is the home dir
 	DefaultHome = "/opt/seatunnel"
 
+	// DefaultLogsDir is the default logs dir of the seatunnel
+	DefaultLogsDir = "/opt/seatunnel/logs"
+
 	// DefaultConfigFileName is the config file name
 	DefaultConfigFileName = "seatunnel.conf"
 
@@ -119,11 +122,11 @@ const (
 )
 
 var (
-	DefaultConfPath = fmt.Sprintf("%s/%s", DefaultHome, "conf")
-	DefaultDataPath = fmt.Sprintf("%s/%s", DefaultHome, "data")
-	DefaultLogPath  = fmt.Sprintf("%s/%s", DefaultHome, "logs")
-	DefaultConfFile = fmt.Sprintf("%s/%s", DefaultConfPath, DefaultConfigFileName)
-	ClusterRefsConfFileList = []string{DefaultSparkConfFile, DefaultHiveSiteFile, DefaultHdfsSiteFile, DefaultCoreSiteFile}
+	DefaultConfPath         = fmt.Sprintf("%s/%s", DefaultHome, "conf")
+	DefaultDataPath         = fmt.Sprintf("%s/%s", DefaultHome, "data")
+	DefaultLogPath          = fmt.Sprintf("%s/%s", DefaultHome, "logs")
+	DefaultConfFile         = fmt.Sprintf("%s/%s", DefaultConfPath, DefaultConfigFileName)
+	ClusterRefsConfFileList = []string{DefaultSparkConfFile, DefaultLogConfigFileName, DefaultHiveSiteFile, DefaultHdfsSiteFile, DefaultCoreSiteFile}
 )
 
 var (
@@ -140,7 +143,7 @@ var DefaultLogConfKeyValue = map[string]string{
 
 	"log4j.appender.RFA":                          "org.apache.log4j.DailyRollingFileAppender",
 	"log4j.appender.RFA.DatePattern":              "'.'yyyy-MM-dd-HH",
-	"log4j.appender.RFA.File":                     "${kafka.logs.dir}/server.log",
+	"log4j.appender.RFA.File":                     fmt.Sprintf("%s/server.log", DefaultLogsDir),
 	"log4j.appender.RFA.layout":                   "org.apache.log4j.PatternLayout",
 	"log4j.appender.RFA.layout.ConversionPattern": "[%d] %p %m (%c)%n",
 }

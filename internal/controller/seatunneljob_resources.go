@@ -158,8 +158,9 @@ func writeSinkConfig(sink *seatunnelv1.SinkConfig) string {
 		}
 		if sink.ExtraConfig != nil {
 			writeSpaces(&sb, 4)
-			sb.WriteString(fmt.Sprintf("%s.config={", strings.ToLower(sink.Type)))
+			sb.WriteString(fmt.Sprintf("%s.config={\n", strings.ToLower(sink.Type)))
 			sb.WriteString(map2String(sink.ExtraConfig, 6, nil))
+			writeSpaces(&sb, 4)
 			sb.WriteString("}\n")
 		}
 		writeSpaces(&sb, 2)
